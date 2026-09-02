@@ -534,8 +534,8 @@ def build_today_report(d):
         pct5 = next((l.get("percentage") for l in d["limits"] if l.get("type") == "TOKENS_LIMIT" and l.get("unit") == 3), None)
         lines.append("")
         cap_s = ""
-        if pct5:
-            cap_s = f"｜隐含上限≈{fmt_m(tot5 / (pct5 / 100))} {unit}" if pct5 > 0 else ""
+        if pct5 and pct5 >= 25:  # 官方百分比为整数取整，过低时隐含上限误差过大，不显示
+            cap_s = f"｜隐含上限≈{fmt_m(tot5 / (pct5 / 100))} {unit}"
         lines.append(f"当前 5h 窗口按 key（{unit}{cap_s}）：")
         lines.append("| Key | 加权消耗 | 占比 |")
         lines.append("|---|---|---|")
@@ -544,12 +544,22 @@ def build_today_report(d):
             lines.append(f"| {label(k)} | {fmt_m(a['w'])} | {share:.1f}% |")
         lines.append(f"| 合计 | {fmt_m(tot5)} | 100% |")
 
-    # 周窗口
+    # 周窗口（与 5h 区块同构：per-key 表 + 隐含上限）
     WW = d["WW"]
     if WW and d.get("winW"):
         totW = sum(a["w"] for a in WW.values())
+        pctW = next((l.get("percentage") for l in d["limits"] if l.get("type") == "TOKENS_LIMIT" and l.get("unit") == 6), None)
         lines.append("")
-        lines.append(f"周窗口累计：{fmt_m(totW)} {unit}")
+        capW_s = ""
+        if pctW and pctW >= 25:  # 同上：百分比过低时不估隐含上限
+            capW_s = f"｜隐含上限≈{fmt_m(totW / (pctW / 100))} {unit}"
+        lines.append(f"周窗口按 key（{unit}{capW_s}）：")
+        lines.append("| Key | 加权消耗 | 占比 |")
+        lines.append("|---|---|---|")
+        for k, a in sorted(WW.items(), key=lambda kv: -kv[1]["w"]):
+            share = a["w"] / totW * 100 if totW else 0
+            lines.append(f"| {label(k)} | {fmt_m(a['w'])} | {share:.1f}% |")
+        lines.append(f"| 合计 | {fmt_m(totW)} | 100% |")
 
     lines.append("")
     notes = ["口径：按明细实时接口（分钟级），账单较实时配额滞后约 45 分钟；"
